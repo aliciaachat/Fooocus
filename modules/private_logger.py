@@ -132,6 +132,6 @@ def log(img, metadata, metadata_parser: MetadataParser | None = None, output_for
 
     print(f'Image generated with private log at: {html_name}')
 
-    log_cache[html_name] = middle_part
+    #log_cache[html_name] = middle_part
 
     return local_temp_filename

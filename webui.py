@@ -16,6 +16,7 @@ import modules.meta_parser
 import args_manager
 import copy
 import launch
+import modules.config
 from extras.inpaint_mask import SAMOptions
 
 from modules.sdxl_styles import legal_style_names
@@ -23,6 +24,9 @@ from modules.private_logger import get_current_html_path
 from modules.ui_gradio_extensions import reload_javascript
 from modules.auth import auth_enabled, check_auth
 from modules.util import is_json
+from ldm_patched.utils.path_utils import set_output_directory, set_lora_directory
+from ldm_patched.modules.args_parser import args as global_args
+
 
 def get_task(*args):
     args = list(args)
@@ -30,7 +34,15 @@ def get_task(*args):
 
     return worker.AsyncTask(args=args)
 
-def generate_clicked(task: worker.AsyncTask):
+def generate_clicked(request: gr.Request, task: worker.AsyncTask):
+
+    # Setup custom output directories per user if auth is enabled
+    if auth_enabled :
+        user = request.username
+        new_output_dir = global_args.output_path.replace("[user]",user)
+        modules.config.path_outputs = new_output_dir
+        set_output_directory(new_output_dir)
+
     import ldm_patched.modules.model_management as model_management
 
     with model_management.interrupt_processing_mutex:
@@ -201,7 +213,7 @@ with shared.gradio_root:
                     skip_button.click(skip_clicked, inputs=currentTask, outputs=currentTask, queue=False, show_progress=False)
             with gr.Row(elem_classes='advanced_check_row'):
                 input_image_checkbox = gr.Checkbox(label='Input Image', value=modules.config.default_image_prompt_checkbox, container=False, elem_classes='min_check')
-                enhance_checkbox = gr.Checkbox(label='Enhance', value=modules.config.default_enhance_checkbox, container=False, elem_classes='min_check')
+                
                 advanced_checkbox = gr.Checkbox(label='Advanced', value=modules.config.default_advanced_checkbox, container=False, elem_classes='min_check')
             with gr.Row(visible=modules.config.default_image_prompt_checkbox) as image_input_panel:
                 with gr.Tabs(selected=modules.config.default_selected_image_input_tab_id):
@@ -380,7 +392,7 @@ with shared.gradio_root:
                         metadata_input_image.upload(trigger_metadata_preview, inputs=metadata_input_image,
                                                     outputs=metadata_json, queue=False, show_progress=True)
 
-            with gr.Row(visible=modules.config.default_enhance_checkbox) as enhance_input_panel:
+            with gr.Row(visible=False) as enhance_input_panel:
                 with gr.Tabs():
                     with gr.Tab(label='Upscale or Variation'):
                         with gr.Row():
@@ -552,9 +564,7 @@ with shared.gradio_root:
             describe_tab.select(lambda: 'desc', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             enhance_tab.select(lambda: 'enhance', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
             metadata_tab.select(lambda: 'metadata', outputs=current_tab, queue=False, _js=down_js, show_progress=False)
-            enhance_checkbox.change(lambda x: gr.update(visible=x), inputs=enhance_checkbox,
-                                        outputs=enhance_input_panel, queue=False, show_progress=False, _js=switch_js)
-
+           
         with gr.Column(scale=1, visible=modules.config.default_advanced_checkbox) as advanced_column:
             with gr.Tab(label='Settings'):
                 if not args_manager.args.disable_preset_selection:
@@ -651,7 +661,7 @@ with shared.gradio_root:
                                                        show_progress=False).then(
                     lambda: None, _js='()=>{refresh_style_localization();}')
 
-            with gr.Tab(label='Models'):
+            with gr.Tab(label='Models') as tabModel:
                 with gr.Group():
                     with gr.Row():
                         base_model = gr.Dropdown(label='Base Model (SDXL only)', choices=modules.config.model_filenames, value=modules.config.default_base_model_name, show_label=True)
@@ -676,7 +686,7 @@ with shared.gradio_root:
                             lora_enabled = gr.Checkbox(label='Enable', value=enabled,
                                                        elem_classes=['lora_enable', 'min_check'], scale=1)
                             lora_model = gr.Dropdown(label=f'LoRA {i + 1}',
-                                                     choices=['None'] + modules.config.lora_filenames, value=filename,
+                                                     choices=['None'] + modules.config.lora_filenames, value=filename, interactive=(not i == 0), # First lora is not swappable
                                                      elem_classes='lora_model', scale=5)
                             lora_weight = gr.Slider(label='Weight', minimum=modules.config.default_loras_min_weight,
                                                     maximum=modules.config.default_loras_max_weight, step=0.01, value=weight,
@@ -879,10 +889,20 @@ with shared.gradio_root:
                         results += [gr.update(interactive=True),
                                     gr.update(choices=['None'] + modules.config.lora_filenames), gr.update()]
                     return results
+                def refresh_wrapper(request:gr.Request):
+                    """Wrapper around refresh_files_clicked() to update lora directory when the tab is selected / models are refreshed"""
+                    user = request.username
+                    new_lora_dir = global_args.lora_path.replace("[user]", user)
+                    modules.config.paths_loras = new_lora_dir
+                    set_lora_directory(new_lora_dir)
 
+                    refresh_files_clicked() # Refreshing once, then refresh on return (one isn't enough for gradio to repaint changes)
+
+                    return refresh_files_clicked() # Same behaviour as refreshing 
                 refresh_files_output = [base_model, refiner_model, vae_name]
                 if not args_manager.args.disable_preset_selection:
                     refresh_files_output += [preset_selection]
+                tabModel.select(refresh_wrapper, [], refresh_files_output + lora_ctrls, queue=False, show_progress=False)
                 refresh_files.click(refresh_files_clicked, [], refresh_files_output + lora_ctrls,
                                     queue=False, show_progress=False)
 
@@ -1003,7 +1023,7 @@ with shared.gradio_root:
 
         ctrls += ip_ctrls
         ctrls += [debugging_dino, dino_erode_or_dilate, debugging_enhance_masks_checkbox,
-                  enhance_input_image, enhance_checkbox, enhance_uov_method, enhance_uov_processing_order,
+                  enhance_input_image, enhance_uov_method, enhance_uov_processing_order,
                   enhance_uov_prompt_type]
         ctrls += enhance_ctrls
 
@@ -1104,7 +1124,7 @@ with shared.gradio_root:
                 .then(fn=style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False) \
                 .then(lambda: None, _js='()=>{refresh_style_localization();}')
 
-            enhance_input_image.upload(lambda: gr.update(value=True), outputs=enhance_checkbox, queue=False, show_progress=False) \
+            enhance_input_image.upload(lambda: gr.update(value=True), queue=False, show_progress=False) \
                 .then(trigger_auto_describe, inputs=[describe_methods, enhance_input_image, prompt, describe_apply_styles],
                       outputs=[prompt, style_selections], show_progress=True, queue=True) \
                 .then(fn=style_sorter.sort_styles, inputs=style_selections, outputs=style_selections, queue=False, show_progress=False) \
@@ -1122,7 +1142,7 @@ shared.gradio_root.launch(
     server_name=args_manager.args.listen,
     server_port=args_manager.args.port,
     share=args_manager.args.share,
-    auth=check_auth if (args_manager.args.share or args_manager.args.listen) and auth_enabled else None,
+    auth=check_auth if auth_enabled else None,
     allowed_paths=[modules.config.path_outputs],
     blocked_paths=[constants.AUTH_FILENAME]
 )

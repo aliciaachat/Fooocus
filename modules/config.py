@@ -11,7 +11,7 @@ import modules.sdxl_styles
 from modules.model_loader import load_file_from_url
 from modules.extra_utils import makedirs_with_log, get_files_from_folder, try_eval_env_var
 from modules.flags import OutputFormat, Performance, MetadataScheme
-
+from ldm_patched.modules.args_parser import args as global_args
 
 def get_config_path(key, default_value):
     env = os.getenv(key)
@@ -202,6 +202,8 @@ path_wildcards = get_dir_or_set_default('path_wildcards', '../wildcards/')
 path_safety_checker = get_dir_or_set_default('path_safety_checker', '../models/safety_checker/')
 path_sam = get_dir_or_set_default('path_sam', '../models/sam/')
 path_outputs = get_path_output()
+path_common_loras = get_dir_or_set_default('path_common_loras', '../models/loras/')
+path_performance_loras = get_dir_or_set_default('path_performance_loras', '../models/loras/')
 
 
 def get_config_item_or_set_default(key, default_value, validator, disable_empty_as_none=False, expected_type=None):
@@ -447,7 +449,7 @@ default_output_format = get_config_item_or_set_default(
 )
 default_image_number = get_config_item_or_set_default(
     key='default_image_number',
-    default_value=2,
+    default_value=1,
     validator=lambda x: isinstance(x, int) and 1 <= x <= default_max_image_number,
     expected_type=int
 )
@@ -814,6 +816,8 @@ def update_files():
     global model_filenames, lora_filenames, vae_filenames, wildcard_filenames, available_presets
     model_filenames = get_model_filenames(paths_checkpoints)
     lora_filenames = get_model_filenames(paths_loras)
+    lora_filenames += get_model_filenames(global_args.common_lora_path) # Adding common loras
+    lora_filenames += get_model_filenames(global_args.performance_lora_path)
     vae_filenames = get_model_filenames(path_vae)
     wildcard_filenames = get_files_from_folder(path_wildcards, ['.txt'])
     available_presets = get_presets()
@@ -861,7 +865,7 @@ def downloading_inpaint_models(v):
 def downloading_sdxl_lcm_lora():
     load_file_from_url(
         url='https://huggingface.co/lllyasviel/misc/resolve/main/sdxl_lcm_lora.safetensors',
-        model_dir=paths_loras[0],
+        model_dir=global_args.performance_lora_path,
         file_name=modules.flags.PerformanceLoRA.EXTREME_SPEED.value
     )
     return modules.flags.PerformanceLoRA.EXTREME_SPEED.value
@@ -870,7 +874,7 @@ def downloading_sdxl_lcm_lora():
 def downloading_sdxl_lightning_lora():
     load_file_from_url(
         url='https://huggingface.co/mashb1t/misc/resolve/main/sdxl_lightning_4step_lora.safetensors',
-        model_dir=paths_loras[0],
+        model_dir=global_args.performance_lora_path,
         file_name=modules.flags.PerformanceLoRA.LIGHTNING.value
     )
     return modules.flags.PerformanceLoRA.LIGHTNING.value
@@ -879,7 +883,7 @@ def downloading_sdxl_lightning_lora():
 def downloading_sdxl_hyper_sd_lora():
     load_file_from_url(
         url='https://huggingface.co/mashb1t/misc/resolve/main/sdxl_hyper_sd_4step_lora.safetensors',
-        model_dir=paths_loras[0],
+        model_dir=global_args.performance_lora_path,
         file_name=modules.flags.PerformanceLoRA.HYPER_SD.value
     )
     return modules.flags.PerformanceLoRA.HYPER_SD.value

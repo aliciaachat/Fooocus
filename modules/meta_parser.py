@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -13,7 +14,7 @@ from modules.flags import MetadataScheme, Performance, Steps
 from modules.flags import SAMPLERS, CIVITAI_NO_KARRAS
 from modules.hash_cache import sha256_from_cache
 from modules.util import quote, unquote, extract_styles_from_prompt, is_json, get_file_from_folder_list
-
+from ldm_patched.modules.args_parser import args as global_args
 re_param_code = r'\s*(\w[\w \-/]+):\s*("(?:\\.|[^\\"])+"|[^,]*)(?:,|$)'
 re_param = re.compile(re_param_code)
 re_imagesize = re.compile(r"^(\d+)x(\d+)$")
@@ -322,6 +323,18 @@ class MetadataParser(ABC):
         self.loras = []
         for (lora_name, lora_weight) in loras:
             if lora_name != 'None':
+
+                # Check if lora is inside the local lora dir (performance loras)
+                if lora_name in os.listdir(global_args.performance_lora_path):
+                    lora_path = get_file_from_folder_list(lora_name, global_args.performance_lora_path)
+                # Check common directory first for common loras
+                elif lora_name in os.listdir(modules.config.path_common_loras):
+                    lora_path = get_file_from_folder_list(lora_name, modules.config.path_common_loras)
+                # Check user lora directory
+                else:
+                    lora_path = get_file_from_folder_list(lora_name, modules.config.paths_loras)
+
+                # lora_path = get_file_from_folder_list(lora_name, modules.config.paths_loras)
                 lora_path = get_file_from_folder_list(lora_name, modules.config.paths_loras)
                 lora_hash = sha256_from_cache(lora_path)
                 self.loras.append((Path(lora_name).stem, lora_weight, lora_hash))
