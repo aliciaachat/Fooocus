@@ -459,3 +459,37 @@ class ProgressBar:
 
     def update(self, value):
         self.update_absolute(self.current + value)
+
+
+def on_image_save(filename):
+    import subprocess, os
+    from pathlib import Path
+    from ldm_patched.modules.args_parser import args as global_args
+    filename = Path(filename).as_posix()
+    script_path = Path(global_args.exportScript).as_posix()
+    if script_path and os.path.exists(script_path) and os.path.isfile(script_path):
+        try:
+            subprocess.Popen([script_path, filename]) # Passing filename as a script argument
+        except Exception as e:
+            print(e)
+
+
+def move_lora(filepath:str, username:str)->bool:
+  """Takes a valid filepath as an input (supposed to be a lora file) and a username and moves the file to the user's lora directory
+  Returns True if the copy succeeded, False otherwise"""
+  from ldm_patched.modules.args_parser import args as global_args
+  import shutil, os
+  from pathlib import Path
+  filepath = Path(filepath)
+  destination_dir = Path(global_args.lora_path.replace("[user]", username))
+  print(f"User {username} requested to move {filepath}")
+  if filepath.is_file():
+    try:
+      if not destination_dir.exists():
+        destination_dir.mkdir(parents=False, exist_ok=True) # Prevent parent creation to be safe with folder creation
+      shutil.copy(filepath, destination_dir.as_posix())
+      os.remove(filepath) # Deleting temp file
+      return True
+    except Exception as e:
+      print("Error while copying uploaded lora :", e)
+  return False
