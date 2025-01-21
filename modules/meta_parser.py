@@ -299,46 +299,57 @@ class MetadataParser(ABC):
     def to_json(self, metadata: dict | str) -> dict:
         raise NotImplementedError
 
-    @abstractmethod
-    def to_string(self, metadata: dict) -> str:
-        raise NotImplementedError
+@abstractmethod
+def to_string(self, metadata: dict) -> str:
+    raise NotImplementedError
 
-    def set_data(self, raw_prompt, full_prompt, raw_negative_prompt, full_negative_prompt, steps, base_model_name,
-                 refiner_model_name, loras, vae_name):
-        self.raw_prompt = raw_prompt
-        self.full_prompt = full_prompt
-        self.raw_negative_prompt = raw_negative_prompt
-        self.full_negative_prompt = full_negative_prompt
-        self.steps = steps
-        self.base_model_name = Path(base_model_name).stem
+def set_data(self, raw_prompt, full_prompt, raw_negative_prompt, full_negative_prompt, steps, base_model_name,
+             refiner_model_name, loras, vae_name):
+    self.raw_prompt = raw_prompt
+    self.full_prompt = full_prompt
+    self.raw_negative_prompt = raw_negative_prompt
+    self.full_negative_prompt = full_negative_prompt
+    self.steps = steps
+    self.base_model_name = Path(base_model_name).stem
 
-        base_model_path = get_file_from_folder_list(base_model_name, modules.config.paths_checkpoints)
-        self.base_model_hash = sha256_from_cache(base_model_path)
+    base_model_path = get_file_from_folder_list(base_model_name, modules.config.paths_checkpoints)
+    self.base_model_hash = sha256_from_cache(base_model_path)
 
-        if refiner_model_name not in ['', 'None']:
-            self.refiner_model_name = Path(refiner_model_name).stem
-            refiner_model_path = get_file_from_folder_list(refiner_model_name, modules.config.paths_checkpoints)
-            self.refiner_model_hash = sha256_from_cache(refiner_model_path)
+    if refiner_model_name not in ['', 'None']:
+        self.refiner_model_name = Path(refiner_model_name).stem
+        refiner_model_path = get_file_from_folder_list(refiner_model_name, modules.config.paths_checkpoints)
+        self.refiner_model_hash = sha256_from_cache(refiner_model_path)
 
-        self.loras = []
+    self.user_loras = {}  # Dictionnaire pour stocker les LoRAs par utilisateur
+    for (user, loras) in user_loras_data.items():  # Supposons que `user_loras_data` contient les données utilisateur
+        self.user_loras[user] = []
         for (lora_name, lora_weight) in loras:
             if lora_name != 'None':
+                lora_path = None
 
-                # Check if lora is inside the local lora dir (performance loras)
-                if lora_name in os.listdir(global_args.performance_lora_path):
+                # Vérifier d'abord le dossier performance_lora_path
+                if global_args.performance_lora_path and lora_name in os.listdir(global_args.performance_lora_path):
                     lora_path = get_file_from_folder_list(lora_name, global_args.performance_lora_path)
-                # Check common directory first for common loras
-                elif lora_name in os.listdir(modules.config.path_common_loras):
+
+                # Vérifier ensuite le dossier commun path_common_loras
+                elif modules.config.path_common_loras and lora_name in os.listdir(modules.config.path_common_loras):
                     lora_path = get_file_from_folder_list(lora_name, modules.config.path_common_loras)
-                # Check user lora directory
-                else:
+
+                # Vérifier enfin le dossier utilisateur paths_loras
+                elif modules.config.paths_loras:
                     lora_path = get_file_from_folder_list(lora_name, modules.config.paths_loras)
 
-                # lora_path = get_file_from_folder_list(lora_name, modules.config.paths_loras)
-                lora_path = get_file_from_folder_list(lora_name, modules.config.paths_loras)
+                # Si le fichier LoRA n'est pas trouvé, ignorer
+                if not lora_path:
+                    print(f"Erreur : Le fichier LoRA '{lora_name}' pour l'utilisateur '{user}' n'a pas été trouvé.")
+                    continue
+
+                # Calculer le hash et ajouter le fichier à la liste des LoRAs pour cet utilisateur
                 lora_hash = sha256_from_cache(lora_path)
-                self.loras.append((Path(lora_name).stem, lora_weight, lora_hash))
-        self.vae_name = Path(vae_name).stem
+                self.user_loras[user].append((Path(lora_name).stem, lora_weight, lora_hash))
+
+    self.vae_name = Path(vae_name).stem
+
 
 
 class A1111MetadataParser(MetadataParser):

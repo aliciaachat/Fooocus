@@ -3,6 +3,7 @@ import threading
 from extras.inpaint_mask import generate_mask_from_image, SAMOptions
 from modules.patch import PatchSettings, patch_settings, patch_all
 import modules.config
+import gradio as gr
 
 patch_all()
 
@@ -200,6 +201,9 @@ def worker():
     from modules.upscaler import perform_upscale
     from modules.flags import Performance
     from modules.meta_parser import get_metadata_parser
+
+
+
 
     pid = os.getpid()
     print(f'Started worker with PID {pid}')

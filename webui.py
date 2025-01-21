@@ -28,6 +28,8 @@ from ldm_patched.utils.path_utils import set_output_directory, set_lora_director
 from ldm_patched.modules.args_parser import args as global_args
 
 
+
+
 def get_task(*args):
     args = list(args)
     args.pop(0)
@@ -38,10 +40,14 @@ def generate_clicked(request: gr.Request, task: worker.AsyncTask):
 
     # Setup custom output directories per user if auth is enabled
     if auth_enabled :
+       
         user = request.username
         new_output_dir = global_args.output_path.replace("[user]",user)
         modules.config.path_outputs = new_output_dir
         set_output_directory(new_output_dir)
+        last = modules.config.paths_loras.split('\\')[-1]
+        path = modules.config.paths_loras.replace(last, user)
+        modules.config.paths_loras=path
 
     import ldm_patched.modules.model_management as model_management
 

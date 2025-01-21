@@ -35,7 +35,30 @@ auth_enabled = auth_dict != None
 
 
 def check_auth(user, password):
+    print(f"Connection attempt for {user}")
     if user not in auth_dict:
         return False
-    else:   
-        return hashlib.sha256(bytes(password, encoding='utf-8')).hexdigest() == auth_dict[user]
+    else:
+        password_correct = hashlib.sha256(bytes(password, encoding='utf-8')).hexdigest() == auth_dict[user]
+
+        if password_correct:
+            print(f"{user} logged successfully")
+            import_log(user) # Try to import previous Fooocus log upon login
+
+        return password_correct
+
+
+def import_log(username: str):
+    """Launches a script to move user's log-atlas.html to a specified location"""
+    from ldm_patched.modules.args_parser import args as global_args
+    import subprocess, os
+    from pathlib import Path
+    if global_args.importScript is None:
+        return
+    script_path = Path(global_args.importScript).as_posix()
+    if script_path and os.path.exists(script_path) and os.path.isfile(script_path):
+        try:
+            print("Ran subprocess upon login")
+            subprocess.Popen([script_path, username])
+        except Exception as e:
+            print(e)
