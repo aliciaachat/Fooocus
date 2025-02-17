@@ -474,20 +474,33 @@ def on_image_save(filename):
             print(e)
 
 
-def move_lora(filepath:str, username:str)->bool:
+def move_lora(filepath: str, username: str) -> bool:
+    """Takes a valid filepath as an input (supposed to be a LoRA file) and a username 
+    and moves the file to the user's LoRA directory.
+    
+    Returns True if the copy succeeded, False otherwise.
+    """
     from ldm_patched.modules.args_parser import args as global_args
-    import shutil, os
+    import shutil
+    import os
     from pathlib import Path
+
     filepath = Path(filepath)
     destination_dir = Path(global_args.lora_path.replace("[user]", username))
+    
     print(f"User {username} requested to move {filepath}")
+
     if filepath.is_file():
         try:
             if not destination_dir.exists():
-                destination_dir.mkdir(parents=True, exist_ok=True)
+                # Prevent parent creation to be safe with folder creation
+                destination_dir.mkdir(parents=False, exist_ok=True)  
+
             shutil.copy(filepath, destination_dir.as_posix())
-            os.remove(filepath)
+            os.remove(filepath)  # Deleting temp file
             return True
+
         except Exception as e:
-            print("Error while copying uploaded lora :", e)
+            print("Error while copying uploaded LoRA:", e)
+
     return False
