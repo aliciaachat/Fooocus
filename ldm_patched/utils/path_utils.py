@@ -1,5 +1,6 @@
 import os
 import time
+from ldm_patched.modules.args_parser import args as global_args
 
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
 
@@ -10,7 +11,7 @@ models_dir = os.path.join(base_path, "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 
-folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
+folder_names_and_paths["loras"] = ([global_args.lora_path], supported_pt_extensions)
 folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
 folder_names_and_paths["clip"] = ([os.path.join(models_dir, "clip")], supported_pt_extensions)
 folder_names_and_paths["unet"] = ([os.path.join(models_dir, "unet")], supported_pt_extensions)
@@ -70,6 +71,9 @@ def get_input_directory():
     global input_directory
     return input_directory
 
+def set_lora_directory(lora_dir):
+    global supported_pt_extensions
+    folder_names_and_paths["loras"] =  ([lora_dir], supported_pt_extensions)
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name):

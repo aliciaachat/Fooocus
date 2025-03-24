@@ -22,7 +22,7 @@ from modules.util import get_file_from_folder_list
 from ldm_patched.modules.lora import model_lora_keys_unet, model_lora_keys_clip
 from modules.config import path_embeddings
 from ldm_patched.contrib.external_model_advanced import ModelSamplingDiscrete, ModelSamplingContinuousEDM
-
+from ldm_patched.modules.args_parser import args as global_args
 opEmptyLatentImage = EmptyLatentImage()
 opVAEDecode = VAEDecode()
 opVAEEncode = VAEEncode()
@@ -81,7 +81,15 @@ class StableDiffusionModel:
             if os.path.exists(filename):
                 lora_filename = filename
             else:
-                lora_filename = get_file_from_folder_list(filename, modules.config.paths_loras)
+                # Check if lora is inside the local lora dir (performance loras)
+                if filename in os.listdir(global_args.performance_lora_path):
+                    lora_filename = get_file_from_folder_list(filename, global_args.performance_lora_path)
+                # Check common directory first for common loras
+                elif filename in os.listdir(modules.config.path_common_loras):
+                    lora_filename = get_file_from_folder_list(filename, modules.config.path_common_loras)
+                # Check user lora directory
+                else:
+                    lora_filename = get_file_from_folder_list(filename, modules.config.paths_loras)
 
             if not os.path.exists(lora_filename):
                 print(f'Lora file not found: {lora_filename}')

@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -13,7 +14,7 @@ from modules.flags import MetadataScheme, Performance, Steps
 from modules.flags import SAMPLERS, CIVITAI_NO_KARRAS
 from modules.hash_cache import sha256_from_cache
 from modules.util import quote, unquote, extract_styles_from_prompt, is_json, get_file_from_folder_list
-
+from ldm_patched.modules.args_parser import args as global_args
 re_param_code = r'\s*(\w[\w \-/]+):\s*("(?:\\.|[^\\"])+"|[^,]*)(?:,|$)'
 re_param = re.compile(re_param_code)
 re_imagesize = re.compile(r"^(\d+)x(\d+)$")
@@ -298,34 +299,49 @@ class MetadataParser(ABC):
     def to_json(self, metadata: dict | str) -> dict:
         raise NotImplementedError
 
-    @abstractmethod
-    def to_string(self, metadata: dict) -> str:
-        raise NotImplementedError
+@abstractmethod
+def to_string(self, metadata: dict) -> str:
+    raise NotImplementedError
 
-    def set_data(self, raw_prompt, full_prompt, raw_negative_prompt, full_negative_prompt, steps, base_model_name,
-                 refiner_model_name, loras, vae_name):
-        self.raw_prompt = raw_prompt
-        self.full_prompt = full_prompt
-        self.raw_negative_prompt = raw_negative_prompt
-        self.full_negative_prompt = full_negative_prompt
-        self.steps = steps
-        self.base_model_name = Path(base_model_name).stem
+def set_data(self, raw_prompt, full_prompt, raw_negative_prompt, full_negative_prompt, steps, base_model_name,
+             refiner_model_name, loras, vae_name):
+    self.raw_prompt = raw_prompt
+    self.full_prompt = full_prompt
+    self.raw_negative_prompt = raw_negative_prompt
+    self.full_negative_prompt = full_negative_prompt
+    self.steps = steps
+    self.base_model_name = Path(base_model_name).stem
 
-        base_model_path = get_file_from_folder_list(base_model_name, modules.config.paths_checkpoints)
-        self.base_model_hash = sha256_from_cache(base_model_path)
+    base_model_path = get_file_from_folder_list(base_model_name, modules.config.paths_checkpoints)
+    self.base_model_hash = sha256_from_cache(base_model_path)
 
-        if refiner_model_name not in ['', 'None']:
-            self.refiner_model_name = Path(refiner_model_name).stem
-            refiner_model_path = get_file_from_folder_list(refiner_model_name, modules.config.paths_checkpoints)
-            self.refiner_model_hash = sha256_from_cache(refiner_model_path)
+    if refiner_model_name not in ['', 'None']:
+        self.refiner_model_name = Path(refiner_model_name).stem
+        refiner_model_path = get_file_from_folder_list(refiner_model_name, modules.config.paths_checkpoints)
+        self.refiner_model_hash = sha256_from_cache(refiner_model_path)
 
-        self.loras = []
-        for (lora_name, lora_weight) in loras:
+    self.loras = []
+    for user, loras in user_loras_data.items():  # Supposons que `user_loras_data` contient les données utilisateur
+        self.user_loras[user] = []
+        for lora_name, lora_weight in loras:
             if lora_name != 'None':
-                lora_path = get_file_from_folder_list(lora_name, modules.config.paths_loras)
+
+                # Check if lora is inside the local lora dir (performance loras)
+                if lora_name in os.listdir(global_args.performance_lora_path):
+                    lora_path = get_file_from_folder_list(lora_name, global_args.performance_lora_path)
+
+                # Check common directory first for common loras
+                elif lora_name in os.listdir(modules.config.path_common_loras):
+                    lora_path = get_file_from_folder_list(lora_name, modules.config.path_common_loras)
+
+                # Check user lora directory
+                else:
+                    lora_path = get_file_from_folder_list(lora_name, modules.config.paths_loras)
+
                 lora_hash = sha256_from_cache(lora_path)
                 self.loras.append((Path(lora_name).stem, lora_weight, lora_hash))
-        self.vae_name = Path(vae_name).stem
+
+    self.vae_name = Path(vae_name).stem
 
 
 class A1111MetadataParser(MetadataParser):

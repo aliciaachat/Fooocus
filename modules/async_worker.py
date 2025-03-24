@@ -3,6 +3,7 @@ import threading
 from extras.inpaint_mask import generate_mask_from_image, SAMOptions
 from modules.patch import PatchSettings, patch_settings, patch_all
 import modules.config
+import gradio as gr
 
 patch_all()
 
@@ -135,7 +136,7 @@ class AsyncTask:
             enhance_inpaint_strength = args.pop()
             enhance_inpaint_respective_field = args.pop()
             enhance_inpaint_erode_or_dilate = args.pop()
-            enhance_mask_invert = args.pop()
+          
             if enhance_enabled:
                 self.enhance_ctrls.append([
                     enhance_mask_dino_prompt_text,
@@ -200,6 +201,9 @@ def worker():
     from modules.upscaler import perform_upscale
     from modules.flags import Performance
     from modules.meta_parser import get_metadata_parser
+
+
+
 
     pid = os.getpid()
     print(f'Started worker with PID {pid}')
@@ -390,7 +394,14 @@ def worker():
                       async_task.metadata_scheme.value if async_task.save_metadata_to_images else async_task.save_metadata_to_images))
             d.append(('Version', 'version', 'Fooocus v' + fooocus_version.version))
             img_paths.append(log(x, d, metadata_parser, async_task.output_format, task, persist_image))
-
+            # --------------- IMAGE SAVED ---------------
+            from ldm_patched.modules.utils import on_image_save
+            for img in img_paths:
+                try:
+                    on_image_save(img)
+                except Exception as e:
+                    print(e)
+            # -------------------------------------------
         return img_paths
 
     def apply_control_nets(async_task, height, ip_adapter_face_path, ip_adapter_path, width, current_progress):
